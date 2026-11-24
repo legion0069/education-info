@@ -1,6 +1,7 @@
 import asyncio
-from fastapi import FastAPI, HTTPException, Query, Header, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Query, Header, BackgroundTasks, Request
 from typing import Optional
+from telegram import Bot, Update
 
 from config import CRON_SECRET_TOKEN, TELEGRAM_BOT_TOKEN, TELEGRAM_ADMIN_CHAT_ID, is_configured
 from database import init_db, is_already_sent, mark_as_sent
@@ -133,6 +134,8 @@ async def trigger_evening(background_tasks: BackgroundTasks, token: Optional[str
     background_tasks.add_task(task_evening)
     return {"status": "success", "triggered": "evening_schedule (National Exams & Drives)"}
 
+@app.get("/scan")
+@app.get("/cron/scan")
 @app.get("/all")
 @app.get("/cron/all")
 async def trigger_all(background_tasks: BackgroundTasks, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
@@ -140,4 +143,50 @@ async def trigger_all(background_tasks: BackgroundTasks, token: Optional[str] = 
     background_tasks.add_task(task_morning)
     background_tasks.add_task(task_afternoon)
     background_tasks.add_task(task_evening)
-    return {"status": "success", "triggered": "full_scan_pipeline"}
+    return {"status": "success", "triggered": "full_scan_pipeline (All categories)"}
+
+@app.post("/telegram/webhook")
+async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
+    """Handles incoming Telegram messages such as /scan."""
+    if not is_configured():
+        return {"status": "ignored", "reason": "not configured"}
+    
+    data = await request.json()
+    update = Update.de_json(data, Bot(token=TELEGRAM_BOT_TOKEN))
+    
+    if update and update.message and update.message.text:
+        text = update.message.text.strip().lower()
+        chat_id = str(update.message.chat_id)
+        bot = Bot(token=TELEGRAM_BOT_TOKEN)
+        
+        # Security check: only respond to the Admin
+        if chat_id == TELEGRAM_ADMIN_CHAT_ID:
+            if text in ["/scan", "scan"]:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text="🔍 *Scan Initiated!*\nChecking LeetCode POTD, Contests, TCS NQT, Deloitte NLA & Unstop drives right now...",
+                    parse_mode="Markdown"
+                )
+                background_tasks.add_task(task_morning)
+                background_tasks.add_task(task_afternoon)
+                background_tasks.add_task(task_evening)
+            elif text in ["/start", "start"]:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text="👋 *2027 Radar Bot is Active!*\n\nSend `/scan` anytime to trigger an instant on-demand scan.",
+                    parse_mode="Markdown"
+                )
+    return {"status": "ok"}
+
+@app.get("/telegram/setup")
+async def setup_telegram_webhook(token: Optional[str] = Query(None)):
+    """Registers Render webhook URL with Telegram API."""
+    if token != CRON_SECRET_TOKEN:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not is_configured():
+        raise HTTPException(status_code=400, detail="Telegram bot credentials missing")
+    
+    bot = Bot(token=TELEGRAM_BOT_TOKEN)
+    webhook_url = "https://education-info.onrender.com/telegram/webhook"
+    success = await bot.set_webhook(url=webhook_url)
+    return {"status": "success", "webhook_url": webhook_url, "registered": success}
