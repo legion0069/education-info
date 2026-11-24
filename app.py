@@ -112,24 +112,28 @@ async def task_evening():
                 url=ex.apply_url
             )
 
+@app.get("/morning")
 @app.get("/cron/morning")
 async def trigger_morning(background_tasks: BackgroundTasks, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
     verify_token(token, authorization)
     background_tasks.add_task(task_morning)
     return {"status": "success", "triggered": "morning_schedule (LeetCode POTD + Contests)"}
 
+@app.get("/afternoon")
 @app.get("/cron/afternoon")
 async def trigger_afternoon(background_tasks: BackgroundTasks, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
     verify_token(token, authorization)
     background_tasks.add_task(task_afternoon)
     return {"status": "success", "triggered": "afternoon_schedule (Tech Internships)"}
 
+@app.get("/evening")
 @app.get("/cron/evening")
 async def trigger_evening(background_tasks: BackgroundTasks, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
     verify_token(token, authorization)
     background_tasks.add_task(task_evening)
     return {"status": "success", "triggered": "evening_schedule (National Exams & Drives)"}
 
+@app.get("/all")
 @app.get("/cron/all")
 async def trigger_all(background_tasks: BackgroundTasks, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
     verify_token(token, authorization)
