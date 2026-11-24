@@ -7,6 +7,7 @@ from scrapers.leetcode import fetch_leetcode_potd
 from scrapers.contests import get_all_upcoming_contests
 from scrapers.unstop import fetch_unstop_opportunities
 from scrapers.exam_tracker import get_national_exams
+from scrapers.tier1_tracker import get_tier1_programs
 from formatter import (
     format_leetcode_potd_whatsapp,
     format_contests_whatsapp,
@@ -106,7 +107,35 @@ async def run_pipeline_async(dry_run: bool = True):
     if new_exams_count == 0:
         print("  ⏭ All National Exams are already tracked in database.")
 
-    # 4. Tech Internships & Drives (Unstop)
+    # 4. Tier-1 Tech Radar (Google, Amazon, Microsoft, Goldman Sachs)
+    print("\n💎 [4.5/5] Checking Tier-1 Tech Flagship Programs (Google, Amazon, MS, etc.)...")
+    tier1_progs = get_tier1_programs()
+    new_tier1_count = 0
+    for prog in tier1_progs:
+        if not is_already_sent(prog.job_id):
+            new_tier1_count += 1
+            print(f"  ✨ New Tier-1 Program: {prog.company} - {prog.role}")
+            msg = format_job_alert_whatsapp(prog)
+            if can_dispatch_telegram and not dry_run:
+                try:
+                    await send_alert_for_approval(
+                        bot_token=TELEGRAM_BOT_TOKEN,
+                        chat_id=TELEGRAM_ADMIN_CHAT_ID,
+                        alert_id=prog.job_id,
+                        title=f"{prog.company} - {prog.role}",
+                        category="Tier-1 Tech Radar",
+                        text=msg,
+                        url=prog.apply_url
+                    )
+                    print(f"  📨 Sent {prog.company} Tier-1 alert to your Telegram!")
+                except Exception as e:
+                    print(f"  ❌ Telegram dispatch failed: {e}")
+            else:
+                print("\n--- [WHATSAPP PREVIEW: TIER-1 TECH] ---\n" + msg + "\n----------------------------------------")
+    if new_tier1_count == 0:
+        print("  ⏭ All Tier-1 programs are already tracked in database.")
+
+    # 5. Tech Internships & Drives (Unstop)
     print("\n💼 [5/5] Fetching Tech Internships & Opportunities...")
     opportunities = fetch_unstop_opportunities(search_terms=["software", "ai"], opportunity_type="internships")
     new_jobs_count = 0

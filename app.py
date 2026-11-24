@@ -9,6 +9,7 @@ from scrapers.leetcode import fetch_leetcode_potd
 from scrapers.contests import get_all_upcoming_contests
 from scrapers.unstop import fetch_unstop_opportunities
 from scrapers.exam_tracker import get_national_exams
+from scrapers.tier1_tracker import get_tier1_programs
 from formatter import (
     format_leetcode_potd_whatsapp,
     format_contests_whatsapp,
@@ -113,6 +114,24 @@ async def task_evening():
                 url=ex.apply_url
             )
 
+async def task_tier1():
+    """Runs Tier-1 Tech Radar (Google, Amazon, Microsoft, Goldman Sachs, etc.)."""
+    if not is_configured():
+        return
+    programs = get_tier1_programs()
+    for prog in programs:
+        if not is_already_sent(prog.job_id):
+            msg = format_job_alert_whatsapp(prog)
+            await send_alert_for_approval(
+                bot_token=TELEGRAM_BOT_TOKEN,
+                chat_id=TELEGRAM_ADMIN_CHAT_ID,
+                alert_id=prog.job_id,
+                title=f"Tier-1: {prog.company} - {prog.role}",
+                category="Tier-1 Tech Radar",
+                text=msg,
+                url=prog.apply_url
+            )
+
 @app.get("/morning")
 @app.get("/cron/morning")
 async def trigger_morning(background_tasks: BackgroundTasks, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
@@ -134,6 +153,13 @@ async def trigger_evening(background_tasks: BackgroundTasks, token: Optional[str
     background_tasks.add_task(task_evening)
     return {"status": "success", "triggered": "evening_schedule (National Exams & Drives)"}
 
+@app.get("/tier1")
+@app.get("/cron/tier1")
+async def trigger_tier1(background_tasks: BackgroundTasks, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+    verify_token(token, authorization)
+    background_tasks.add_task(task_tier1)
+    return {"status": "success", "triggered": "tier1_tech_radar (Google, Amazon, MS, Goldman)"}
+
 @app.get("/scan")
 @app.get("/cron/scan")
 @app.get("/all")
@@ -143,7 +169,8 @@ async def trigger_all(background_tasks: BackgroundTasks, token: Optional[str] = 
     background_tasks.add_task(task_morning)
     background_tasks.add_task(task_afternoon)
     background_tasks.add_task(task_evening)
-    return {"status": "success", "triggered": "full_scan_pipeline (All categories)"}
+    background_tasks.add_task(task_tier1)
+    return {"status": "success", "triggered": "full_scan_pipeline (All categories + Tier 1)"}
 
 @app.post("/telegram/webhook")
 async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
@@ -164,12 +191,13 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
             if text in ["/scan", "scan"]:
                 await bot.send_message(
                     chat_id=chat_id,
-                    text="🔍 *Scan Initiated!*\nChecking LeetCode POTD, Contests, TCS NQT, Deloitte NLA & Unstop drives right now...",
+                    text="🔍 *Scan Initiated!*\nChecking LeetCode POTD, Contests, Tier-1 Tech (Google, Amazon, MS), TCS NQT, Deloitte NLA & Unstop drives...",
                     parse_mode="Markdown"
                 )
                 background_tasks.add_task(task_morning)
                 background_tasks.add_task(task_afternoon)
                 background_tasks.add_task(task_evening)
+                background_tasks.add_task(task_tier1)
             elif text in ["/start", "start"]:
                 await bot.send_message(
                     chat_id=chat_id,
