@@ -174,17 +174,50 @@ async def trigger_all(background_tasks: BackgroundTasks, token: Optional[str] = 
 
 @app.post("/telegram/webhook")
 async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
-    """Handles incoming Telegram messages such as /scan."""
+    """Handles incoming Telegram messages (like /scan) and inline button callbacks."""
     if not is_configured():
         return {"status": "ignored", "reason": "not configured"}
     
     data = await request.json()
-    update = Update.de_json(data, Bot(token=TELEGRAM_BOT_TOKEN))
+    bot = Bot(token=TELEGRAM_BOT_TOKEN)
+    update = Update.de_json(data, bot)
     
+    # 1. Handle Inline Button Clicks (Mark as Sent / Dismiss)
+    if update and update.callback_query:
+        query = update.callback_query
+        try:
+            await query.answer()
+        except Exception:
+            pass
+            
+        data_str = query.data or ""
+        chat_id = str(query.message.chat_id) if query.message else ""
+        
+        # Verify admin identity
+        if chat_id == TELEGRAM_ADMIN_CHAT_ID and ":" in data_str:
+            action, alert_id = data_str.split(":", 1)
+            original_text = query.message.text or ""
+            
+            if action == "appr":
+                mark_as_sent(alert_id, "approved", "Approved Opportunity", "")
+                new_text = f"{original_text}\n\n✅ STATUS: APPROVED & MARKED AS SENT!"
+                try:
+                    await query.edit_message_text(text=new_text, reply_markup=None)
+                except Exception as e:
+                    print(f"Error editing callback message: {e}")
+            elif action == "dism":
+                mark_as_sent(alert_id, "dismissed", "Dismissed Opportunity", "")
+                new_text = f"{original_text}\n\n❌ STATUS: DISMISSED BY ADMIN."
+                try:
+                    await query.edit_message_text(text=new_text, reply_markup=None)
+                except Exception as e:
+                    print(f"Error editing callback message: {e}")
+        return {"status": "ok"}
+    
+    # 2. Handle Text Commands (/scan, /start)
     if update and update.message and update.message.text:
         text = update.message.text.strip().lower()
         chat_id = str(update.message.chat_id)
-        bot = Bot(token=TELEGRAM_BOT_TOKEN)
         
         # Security check: only respond to the Admin
         if chat_id == TELEGRAM_ADMIN_CHAT_ID:
