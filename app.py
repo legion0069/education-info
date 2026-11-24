@@ -10,6 +10,7 @@ from scrapers.contests import get_all_upcoming_contests
 from scrapers.unstop import fetch_unstop_opportunities
 from scrapers.exam_tracker import get_national_exams
 from scrapers.tier1_tracker import get_tier1_programs
+from scrapers.multi_board_scraper import fetch_all_multi_board_opportunities
 from formatter import (
     format_leetcode_potd_whatsapp,
     format_contests_whatsapp,
@@ -79,11 +80,12 @@ async def task_morning():
             )
 
 async def task_afternoon():
-    """Runs Tech Internships & Opportunities from Unstop."""
+    """Runs Tech Internships & Opportunities from Unstop, LinkedIn, Internshala, and Instahyre."""
     if not is_configured():
         return
+    # 1. Unstop Opportunities
     opportunities = fetch_unstop_opportunities(search_terms=["software", "ai", "developer"], opportunity_type="internships")
-    for opp in opportunities[:3]:
+    for opp in opportunities[:2]:
         if not is_already_sent(opp.job_id):
             msg = format_job_alert_whatsapp(opp)
             await send_alert_for_approval(
@@ -94,6 +96,21 @@ async def task_afternoon():
                 category="Tech Internship",
                 text=msg,
                 url=opp.apply_url
+            )
+            
+    # 2. Multi-Board Opportunities (LinkedIn, Internshala, Instahyre)
+    multi_jobs = fetch_all_multi_board_opportunities()
+    for job in multi_jobs[:3]:
+        if not is_already_sent(job.job_id):
+            msg = format_job_alert_whatsapp(job)
+            await send_alert_for_approval(
+                bot_token=TELEGRAM_BOT_TOKEN,
+                chat_id=TELEGRAM_ADMIN_CHAT_ID,
+                alert_id=job.job_id,
+                title=f"[{job.source}] {job.company} - {job.role}",
+                category=f"{job.source} Opportunity",
+                text=msg,
+                url=job.apply_url
             )
 
 async def task_evening():
@@ -241,7 +258,7 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
                 try:
                     await bot.send_message(
                         chat_id=chat_id,
-                        text="🔍 *Scan Initiated!*\nChecking LeetCode POTD, Contests, Tier-1 Tech (Google, Amazon, MS), TCS NQT, Deloitte NLA & Unstop drives...",
+                        text="🔍 *Scan Initiated!*\nChecking LeetCode POTD, Contests, Tier-1 Tech, LinkedIn, Internshala, Instahyre & Unstop drives...",
                         parse_mode="Markdown"
                     )
                 except Exception as e:
