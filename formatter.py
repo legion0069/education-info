@@ -54,6 +54,29 @@ def format_contests_whatsapp(contests: list[CodingContest]) -> str:
     lines.append("💡 *Tip:* Rating contests are heavily valued during resume shortlisting!\n👥 *2027 Tech Community*")
     return "\n".join(lines)
 
+def format_higher_studies_whatsapp(pathway: JobAlert) -> str:
+    """Formats higher education and post-grad career pathways for WhatsApp."""
+    degrees = ", ".join(pathway.eligible_degrees)
+    branches = ", ".join(pathway.eligible_branches)
+    
+    message = (
+        f"🎓 *HIGHER STUDIES & CAREER PATHWAY | 2027 BATCH*\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🏛 *Path / Exam:* {pathway.company}\n"
+        f"🎯 *Program:* *{pathway.role}*\n"
+        f"📅 *Target Batch:* {pathway.batch}\n"
+        f"💰 *Stipend / Package:* {pathway.stipend_or_ctc}\n"
+        f"📍 *Institutes / Scope:* {pathway.location}\n\n"
+        f"📋 *Eligibility & Streams:*\n"
+        f"• *Degree:* {degrees}\n"
+        f"• *Eligible Branches:* {branches}\n"
+        f"• *Track:* {pathway.job_type}\n"
+        f"⏳ *Key Dates & Timeline:* {pathway.deadline}\n\n"
+        f"🔗 *Official Portal / Guidelines:*\n{pathway.apply_url}\n\n"
+        f"{get_community_footer()}"
+    )
+    return message
+
 def format_job_alert_whatsapp(job: JobAlert) -> str:
     """Formats job or internship drive into clean WhatsApp bulletin."""
     degrees = ", ".join(job.eligible_degrees)

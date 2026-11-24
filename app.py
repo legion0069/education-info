@@ -11,10 +11,12 @@ from scrapers.unstop import fetch_unstop_opportunities
 from scrapers.exam_tracker import get_national_exams
 from scrapers.tier1_tracker import get_tier1_programs
 from scrapers.multi_board_scraper import fetch_all_multi_board_opportunities
+from scrapers.higher_studies_tracker import get_higher_studies_programs
 from formatter import (
     format_leetcode_potd_whatsapp,
     format_contests_whatsapp,
-    format_job_alert_whatsapp
+    format_job_alert_whatsapp,
+    format_higher_studies_whatsapp
 )
 from telegram_dispatcher import send_alert_for_approval
 
@@ -149,6 +151,24 @@ async def task_tier1():
                 url=prog.apply_url
             )
 
+async def task_higher_studies():
+    """Runs Higher Studies & Post-Grad Pathways (GATE, MS Abroad, CAT, ISRO)."""
+    if not is_configured():
+        return
+    pathways = get_higher_studies_programs()
+    for path in pathways:
+        if not is_already_sent(path.job_id):
+            msg = format_higher_studies_whatsapp(path)
+            await send_alert_for_approval(
+                bot_token=TELEGRAM_BOT_TOKEN,
+                chat_id=TELEGRAM_ADMIN_CHAT_ID,
+                alert_id=path.job_id,
+                title=f"Higher Studies: {path.company}",
+                category="Post-Grad Pathway",
+                text=msg,
+                url=path.apply_url
+            )
+
 @app.get("/morning")
 @app.get("/cron/morning")
 async def trigger_morning(background_tasks: BackgroundTasks, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
@@ -177,6 +197,13 @@ async def trigger_tier1(background_tasks: BackgroundTasks, token: Optional[str] 
     background_tasks.add_task(task_tier1)
     return {"status": "success", "triggered": "tier1_tech_radar (Google, Amazon, MS, Goldman)"}
 
+@app.get("/higher_studies")
+@app.get("/cron/higher_studies")
+async def trigger_higher_studies(background_tasks: BackgroundTasks, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+    verify_token(token, authorization)
+    background_tasks.add_task(task_higher_studies)
+    return {"status": "success", "triggered": "higher_studies_pathways (GATE, MS Abroad, CAT, ISRO)"}
+
 @app.get("/scan")
 @app.get("/cron/scan")
 @app.get("/all")
@@ -187,7 +214,8 @@ async def trigger_all(background_tasks: BackgroundTasks, token: Optional[str] = 
     background_tasks.add_task(task_afternoon)
     background_tasks.add_task(task_evening)
     background_tasks.add_task(task_tier1)
-    return {"status": "success", "triggered": "full_scan_pipeline (All categories + Tier 1)"}
+    background_tasks.add_task(task_higher_studies)
+    return {"status": "success", "triggered": "full_scan_pipeline (All categories + Tier 1 + Higher Studies)"}
 
 @app.post("/telegram/webhook")
 async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
@@ -258,7 +286,7 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
                 try:
                     await bot.send_message(
                         chat_id=chat_id,
-                        text="🔍 *Scan Initiated!*\nChecking LeetCode POTD, Contests, Tier-1 Tech, LinkedIn, Internshala, Instahyre & Unstop drives...",
+                        text="🔍 *Scan Initiated!*\nChecking LeetCode POTD, Contests, Tier-1 Tech, LinkedIn, Internshala, National Exams & Higher Studies (GATE/MS/CAT)...",
                         parse_mode="Markdown"
                     )
                 except Exception as e:
@@ -267,6 +295,7 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
                 background_tasks.add_task(task_afternoon)
                 background_tasks.add_task(task_evening)
                 background_tasks.add_task(task_tier1)
+                background_tasks.add_task(task_higher_studies)
             elif text in ["/start", "start"]:
                 try:
                     await bot.send_message(
