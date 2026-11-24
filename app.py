@@ -178,65 +178,88 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
     if not is_configured():
         return {"status": "ignored", "reason": "not configured"}
     
-    data = await request.json()
+    try:
+        data = await request.json()
+    except Exception:
+        return {"status": "bad request"}
+    
     bot = Bot(token=TELEGRAM_BOT_TOKEN)
-    update = Update.de_json(data, bot)
     
     # 1. Handle Inline Button Clicks (Mark as Sent / Dismiss)
-    if update and update.callback_query:
-        query = update.callback_query
-        try:
-            await query.answer()
-        except Exception:
-            pass
-            
-        data_str = query.data or ""
-        chat_id = str(query.message.chat_id) if query.message else ""
+    if "callback_query" in data:
+        cq = data["callback_query"]
+        cq_id = cq.get("id")
+        data_str = cq.get("data", "")
+        msg = cq.get("message", {})
+        msg_id = msg.get("message_id")
+        chat_id = str(msg.get("chat", {}).get("id", ""))
+        original_text = msg.get("text", "")
         
-        # Verify admin identity
+        # Acknowledge callback immediately to remove loading spinner in Telegram
+        try:
+            await bot.answer_callback_query(callback_query_id=cq_id)
+        except Exception as e:
+            print(f"Error answering callback: {e}")
+            
         if chat_id == TELEGRAM_ADMIN_CHAT_ID and ":" in data_str:
             action, alert_id = data_str.split(":", 1)
-            original_text = query.message.text or ""
             
             if action == "appr":
                 mark_as_sent(alert_id, "approved", "Approved Opportunity", "")
-                new_text = f"{original_text}\n\n✅ STATUS: APPROVED & MARKED AS SENT!"
+                new_text = f"{original_text}\n\n✅ STATUS: APPROVED & RECORDED!"
                 try:
-                    await query.edit_message_text(text=new_text, reply_markup=None)
+                    await bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=msg_id,
+                        text=new_text,
+                        reply_markup=None
+                    )
                 except Exception as e:
-                    print(f"Error editing callback message: {e}")
+                    print(f"Error updating message: {e}")
             elif action == "dism":
                 mark_as_sent(alert_id, "dismissed", "Dismissed Opportunity", "")
                 new_text = f"{original_text}\n\n❌ STATUS: DISMISSED BY ADMIN."
                 try:
-                    await query.edit_message_text(text=new_text, reply_markup=None)
+                    await bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=msg_id,
+                        text=new_text,
+                        reply_markup=None
+                    )
                 except Exception as e:
-                    print(f"Error editing callback message: {e}")
+                    print(f"Error updating message: {e}")
         return {"status": "ok"}
     
-    # 2. Handle Text Commands (/scan, /start)
-    if update and update.message and update.message.text:
-        text = update.message.text.strip().lower()
-        chat_id = str(update.message.chat_id)
+    # 2. Handle Text Messages (/scan, /start)
+    if "message" in data:
+        msg = data["message"]
+        text = msg.get("text", "").strip().lower()
+        chat_id = str(msg.get("chat", {}).get("id", ""))
         
-        # Security check: only respond to the Admin
         if chat_id == TELEGRAM_ADMIN_CHAT_ID:
             if text in ["/scan", "scan"]:
-                await bot.send_message(
-                    chat_id=chat_id,
-                    text="🔍 *Scan Initiated!*\nChecking LeetCode POTD, Contests, Tier-1 Tech (Google, Amazon, MS), TCS NQT, Deloitte NLA & Unstop drives...",
-                    parse_mode="Markdown"
-                )
+                try:
+                    await bot.send_message(
+                        chat_id=chat_id,
+                        text="🔍 *Scan Initiated!*\nChecking LeetCode POTD, Contests, Tier-1 Tech (Google, Amazon, MS), TCS NQT, Deloitte NLA & Unstop drives...",
+                        parse_mode="Markdown"
+                    )
+                except Exception as e:
+                    print(f"Error sending scan confirmation: {e}")
                 background_tasks.add_task(task_morning)
                 background_tasks.add_task(task_afternoon)
                 background_tasks.add_task(task_evening)
                 background_tasks.add_task(task_tier1)
             elif text in ["/start", "start"]:
-                await bot.send_message(
-                    chat_id=chat_id,
-                    text="👋 *2027 Radar Bot is Active!*\n\nSend `/scan` anytime to trigger an instant on-demand scan.",
-                    parse_mode="Markdown"
-                )
+                try:
+                    await bot.send_message(
+                        chat_id=chat_id,
+                        text="👋 *2027 Radar Bot is Active!*\n\nSend `/scan` anytime to trigger an instant on-demand scan.",
+                        parse_mode="Markdown"
+                    )
+                except Exception as e:
+                    print(f"Error sending start message: {e}")
+                    
     return {"status": "ok"}
 
 @app.get("/telegram/setup")
