@@ -18,6 +18,17 @@ def create_whatsapp_share_link(text: str) -> str:
     encoded_text = quote(text)
     return f"https://api.whatsapp.com/send?text={encoded_text}"
 
+def create_linkedin_share_link(text: str, url: str) -> str:
+    """Creates a native LinkedIn post composer deep-link with pre-filled text & hashtags."""
+    clean_text = text.replace("*", "").replace("`", "")
+    linkedin_post = (
+        f"🚀 NEW OPPORTUNITY ALERT (2027 Engineering Batch)\n\n"
+        f"{clean_text}\n\n"
+        f"👉 Direct Apply / Resource Link: {url}\n\n"
+        f"#Hiring #Placements2027 #Internships #TechJobs #BTech #Engineering #ComputerScience #FreshersJobs"
+    )
+    return f"https://www.linkedin.com/feed/?shareActive=true&text={quote(linkedin_post)}"
+
 async def send_alert_for_approval(bot_token: str, chat_id: str, alert_id: str, title: str, category: str, text: str, url: str):
     """Sends a formatted alert to the Admin's Telegram with interactive Approval buttons."""
     from telegram import Bot
@@ -31,12 +42,14 @@ async def send_alert_for_approval(bot_token: str, chat_id: str, alert_id: str, t
         "url": url
     }
     
-    # One-click native WhatsApp share link
+    # One-click native share links
     wa_share_url = create_whatsapp_share_link(text)
+    li_share_url = create_linkedin_share_link(text, url)
     
     keyboard = [
         [
-            InlineKeyboardButton("🚀 1-Tap Open in WhatsApp", url=wa_share_url)
+            InlineKeyboardButton("🚀 1-Tap WhatsApp", url=wa_share_url),
+            InlineKeyboardButton("💼 1-Tap LinkedIn", url=li_share_url)
         ],
         [
             InlineKeyboardButton("✅ Mark as Sent", callback_data=f"appr:{alert_id}"),
