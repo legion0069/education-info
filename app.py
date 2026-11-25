@@ -1,5 +1,6 @@
 import asyncio
 from fastapi import FastAPI, HTTPException, Query, Header, BackgroundTasks, Request
+from fastapi.responses import PlainTextResponse
 from typing import Optional
 from telegram import Bot, Update
 
@@ -171,51 +172,51 @@ async def task_higher_studies():
 
 @app.get("/morning")
 @app.get("/cron/morning")
-async def trigger_morning(background_tasks: BackgroundTasks, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+async def trigger_morning(token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
     verify_token(token, authorization)
-    background_tasks.add_task(task_morning)
-    return {"status": "success", "triggered": "morning_schedule (LeetCode POTD + Contests)"}
+    asyncio.create_task(task_morning())
+    return PlainTextResponse("OK")
 
 @app.get("/afternoon")
 @app.get("/cron/afternoon")
-async def trigger_afternoon(background_tasks: BackgroundTasks, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+async def trigger_afternoon(token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
     verify_token(token, authorization)
-    background_tasks.add_task(task_afternoon)
-    return {"status": "success", "triggered": "afternoon_schedule (Tech Internships)"}
+    asyncio.create_task(task_afternoon())
+    return PlainTextResponse("OK")
 
 @app.get("/evening")
 @app.get("/cron/evening")
-async def trigger_evening(background_tasks: BackgroundTasks, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+async def trigger_evening(token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
     verify_token(token, authorization)
-    background_tasks.add_task(task_evening)
-    return {"status": "success", "triggered": "evening_schedule (National Exams & Drives)"}
+    asyncio.create_task(task_evening())
+    return PlainTextResponse("OK")
 
 @app.get("/tier1")
 @app.get("/cron/tier1")
-async def trigger_tier1(background_tasks: BackgroundTasks, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+async def trigger_tier1(token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
     verify_token(token, authorization)
-    background_tasks.add_task(task_tier1)
-    return {"status": "success", "triggered": "tier1_tech_radar (Google, Amazon, MS, Goldman)"}
+    asyncio.create_task(task_tier1())
+    return PlainTextResponse("OK")
 
 @app.get("/higher_studies")
 @app.get("/cron/higher_studies")
-async def trigger_higher_studies(background_tasks: BackgroundTasks, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+async def trigger_higher_studies(token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
     verify_token(token, authorization)
-    background_tasks.add_task(task_higher_studies)
-    return {"status": "success", "triggered": "higher_studies_pathways (GATE, MS Abroad, CAT, ISRO)"}
+    asyncio.create_task(task_higher_studies())
+    return PlainTextResponse("OK")
 
 @app.get("/scan")
 @app.get("/cron/scan")
 @app.get("/all")
 @app.get("/cron/all")
-async def trigger_all(background_tasks: BackgroundTasks, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+async def trigger_all(token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
     verify_token(token, authorization)
-    background_tasks.add_task(task_morning)
-    background_tasks.add_task(task_afternoon)
-    background_tasks.add_task(task_evening)
-    background_tasks.add_task(task_tier1)
-    background_tasks.add_task(task_higher_studies)
-    return {"status": "success", "triggered": "full_scan_pipeline (All categories + Tier 1 + Higher Studies)"}
+    asyncio.create_task(task_morning())
+    asyncio.create_task(task_afternoon())
+    asyncio.create_task(task_evening())
+    asyncio.create_task(task_tier1())
+    asyncio.create_task(task_higher_studies())
+    return PlainTextResponse("OK")
 
 @app.post("/telegram/webhook")
 async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
