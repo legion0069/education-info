@@ -12,12 +12,11 @@ from scrapers.unstop import fetch_unstop_opportunities
 from scrapers.exam_tracker import get_national_exams
 from scrapers.tier1_tracker import get_tier1_programs
 from scrapers.multi_board_scraper import fetch_all_multi_board_opportunities
-from scrapers.higher_studies_tracker import get_higher_studies_programs
+from scrapers.github_swe_tracker import fetch_github_college_jobs
 from formatter import (
     format_leetcode_potd_whatsapp,
     format_contests_whatsapp,
-    format_job_alert_whatsapp,
-    format_higher_studies_whatsapp
+    format_job_alert_whatsapp
 )
 from telegram_dispatcher import send_alert_for_approval
 
@@ -83,12 +82,51 @@ async def task_morning():
             )
 
 async def task_afternoon():
-    """Runs Tech Internships & Opportunities from Unstop, LinkedIn, Internshala, and Instahyre."""
+    """Runs high-volume verified engineering jobs & internships across LinkedIn, Internshala, Instahyre, GitHub & Unstop."""
     if not is_configured():
         return
-    # 1. Unstop Opportunities
-    opportunities = fetch_unstop_opportunities(search_terms=["software", "ai", "developer"], opportunity_type="internships")
-    for opp in opportunities[:2]:
+        
+    dispatched_count = 0
+    
+    # 1. Direct Summer 2027 College Internships from Open-Source Tech Tracker (NVIDIA, Airbnb, Rivian, Palantir, etc.)
+    github_jobs = fetch_github_college_jobs(limit=15)
+    for g_job in github_jobs:
+        if not is_already_sent(g_job.job_id):
+            msg = format_job_alert_whatsapp(g_job)
+            await send_alert_for_approval(
+                bot_token=TELEGRAM_BOT_TOKEN,
+                chat_id=TELEGRAM_ADMIN_CHAT_ID,
+                alert_id=g_job.job_id,
+                title=f"[{g_job.company}] {g_job.role}",
+                category="Summer 2027 Intern",
+                text=msg,
+                url=g_job.apply_url
+            )
+            dispatched_count += 1
+            if dispatched_count >= 4:
+                break
+                
+    # 2. Multi-Board Verified Opportunities (LinkedIn, Internshala, Instahyre)
+    multi_jobs = fetch_all_multi_board_opportunities()
+    for job in multi_jobs:
+        if not is_already_sent(job.job_id):
+            msg = format_job_alert_whatsapp(job)
+            await send_alert_for_approval(
+                bot_token=TELEGRAM_BOT_TOKEN,
+                chat_id=TELEGRAM_ADMIN_CHAT_ID,
+                alert_id=job.job_id,
+                title=f"[{job.source}] {job.company} - {job.role}",
+                category=f"{job.source} Opening",
+                text=msg,
+                url=job.apply_url
+            )
+            dispatched_count += 1
+            if dispatched_count >= 8:
+                break
+                
+    # 3. Unstop Opportunities
+    opportunities = fetch_unstop_opportunities(search_terms=["software", "ai", "developer", "python"], opportunity_type="internships")
+    for opp in opportunities:
         if not is_already_sent(opp.job_id):
             msg = format_job_alert_whatsapp(opp)
             await send_alert_for_approval(
@@ -100,21 +138,9 @@ async def task_afternoon():
                 text=msg,
                 url=opp.apply_url
             )
-            
-    # 2. Multi-Board Opportunities (LinkedIn, Internshala, Instahyre)
-    multi_jobs = fetch_all_multi_board_opportunities()
-    for job in multi_jobs[:3]:
-        if not is_already_sent(job.job_id):
-            msg = format_job_alert_whatsapp(job)
-            await send_alert_for_approval(
-                bot_token=TELEGRAM_BOT_TOKEN,
-                chat_id=TELEGRAM_ADMIN_CHAT_ID,
-                alert_id=job.job_id,
-                title=f"[{job.source}] {job.company} - {job.role}",
-                category=f"{job.source} Opportunity",
-                text=msg,
-                url=job.apply_url
-            )
+            dispatched_count += 1
+            if dispatched_count >= 10:
+                break
 
 async def task_evening():
     """Runs National Level Exams (TCS NQT, Deloitte NLA, Infosys, etc.)."""
@@ -152,24 +178,6 @@ async def task_tier1():
                 url=prog.apply_url
             )
 
-async def task_higher_studies():
-    """Runs Higher Studies & Post-Grad Pathways (GATE, MS Abroad, CAT, ISRO)."""
-    if not is_configured():
-        return
-    pathways = get_higher_studies_programs()
-    for path in pathways:
-        if not is_already_sent(path.job_id):
-            msg = format_higher_studies_whatsapp(path)
-            await send_alert_for_approval(
-                bot_token=TELEGRAM_BOT_TOKEN,
-                chat_id=TELEGRAM_ADMIN_CHAT_ID,
-                alert_id=path.job_id,
-                title=f"Higher Studies: {path.company}",
-                category="Post-Grad Pathway",
-                text=msg,
-                url=path.apply_url
-            )
-
 @app.get("/morning")
 @app.get("/cron/morning")
 async def trigger_morning(token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
@@ -198,13 +206,6 @@ async def trigger_tier1(token: Optional[str] = Query(None), authorization: Optio
     asyncio.create_task(task_tier1())
     return PlainTextResponse("OK")
 
-@app.get("/higher_studies")
-@app.get("/cron/higher_studies")
-async def trigger_higher_studies(token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
-    verify_token(token, authorization)
-    asyncio.create_task(task_higher_studies())
-    return PlainTextResponse("OK")
-
 @app.get("/scan")
 @app.get("/cron/scan")
 @app.get("/all")
@@ -215,7 +216,6 @@ async def trigger_all(token: Optional[str] = Query(None), authorization: Optiona
     asyncio.create_task(task_afternoon())
     asyncio.create_task(task_evening())
     asyncio.create_task(task_tier1())
-    asyncio.create_task(task_higher_studies())
     return PlainTextResponse("OK")
 
 @app.post("/telegram/webhook")
@@ -287,7 +287,7 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
                 try:
                     await bot.send_message(
                         chat_id=chat_id,
-                        text="🔍 *Scan Initiated!*\nChecking LeetCode POTD, Contests, Tier-1 Tech, LinkedIn, Internshala, National Exams & Higher Studies (GATE/MS/CAT)...",
+                        text="🔍 *Scan Initiated!*\nChecking LeetCode POTD, Contests, Summer 2027 Internships (NVIDIA, Airbnb), Tier-1 Tech, LinkedIn, Internshala & Instahyre...",
                         parse_mode="Markdown"
                     )
                 except Exception as e:
@@ -296,7 +296,6 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
                 background_tasks.add_task(task_afternoon)
                 background_tasks.add_task(task_evening)
                 background_tasks.add_task(task_tier1)
-                background_tasks.add_task(task_higher_studies)
             elif text in ["/start", "start"]:
                 try:
                     await bot.send_message(

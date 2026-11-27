@@ -8,6 +8,8 @@ from scrapers.contests import get_all_upcoming_contests
 from scrapers.unstop import fetch_unstop_opportunities
 from scrapers.exam_tracker import get_national_exams
 from scrapers.tier1_tracker import get_tier1_programs
+from scrapers.multi_board_scraper import fetch_all_multi_board_opportunities
+from scrapers.github_swe_tracker import fetch_github_college_jobs
 from formatter import (
     format_leetcode_potd_whatsapp,
     format_contests_whatsapp,
@@ -135,33 +137,63 @@ async def run_pipeline_async(dry_run: bool = True):
     if new_tier1_count == 0:
         print("  ⏭ All Tier-1 programs are already tracked in database.")
 
-    # 5. Tech Internships & Drives (Unstop)
-    print("\n💼 [5/5] Fetching Tech Internships & Opportunities...")
-    opportunities = fetch_unstop_opportunities(search_terms=["software", "ai"], opportunity_type="internships")
-    new_jobs_count = 0
-    for opp in opportunities[:2]:  # Send top 2 new opportunities per run
-        if not is_already_sent(opp.job_id):
-            new_jobs_count += 1
-            print(f"  ✨ New Opportunity: {opp.company} - {opp.role}")
-            msg = format_job_alert_whatsapp(opp)
+    # 5. Summer 2027 Tech Internships (NVIDIA, Airbnb, Rivian, Workday/Greenhouse)
+    print("\n🚀 [5/6] Checking Summer 2027 Open-Source Tech Radar...")
+    github_jobs = fetch_github_college_jobs(limit=10)
+    new_github_count = 0
+    for g_job in github_jobs:
+        if not is_already_sent(g_job.job_id):
+            new_github_count += 1
+            print(f"  ✨ New Summer 2027 Intern: {g_job.company} - {g_job.role}")
+            msg = format_job_alert_whatsapp(g_job)
             if can_dispatch_telegram and not dry_run:
                 try:
                     await send_alert_for_approval(
                         bot_token=TELEGRAM_BOT_TOKEN,
                         chat_id=TELEGRAM_ADMIN_CHAT_ID,
-                        alert_id=opp.job_id,
-                        title=f"{opp.company} - {opp.role}",
-                        category="Tech Internship",
+                        alert_id=g_job.job_id,
+                        title=f"{g_job.company} - {g_job.role}",
+                        category="Summer 2027 Intern",
                         text=msg,
-                        url=opp.apply_url
+                        url=g_job.apply_url
                     )
-                    print(f"  📨 Sent {opp.company} internship to your Telegram!")
                 except Exception as e:
                     print(f"  ❌ Telegram dispatch failed: {e}")
             else:
-                print("\n--- [WHATSAPP PREVIEW: INTERNSHIP] ---\n" + msg + "\n------------------------------------")
-    if new_jobs_count == 0:
-        print("  ⏭ No new untracked internships found in this batch.")
+                print("\n--- [WHATSAPP PREVIEW: SUMMER 2027 INTERN] ---\n" + msg + "\n----------------------------------------")
+            if new_github_count >= 3:
+                break
+    if new_github_count == 0:
+        print("  ⏭ All GitHub summer internships already tracked.")
+
+    # 6. Multi-Board Verified Tech Openings (LinkedIn, Internshala, Instahyre)
+    print("\n💼 [6/6] Fetching Multi-Board Tech Openings (LinkedIn, Internshala, Instahyre)...")
+    multi_jobs = fetch_all_multi_board_opportunities()
+    new_multi_count = 0
+    for job in multi_jobs:
+        if not is_already_sent(job.job_id):
+            new_multi_count += 1
+            print(f"  ✨ New Opening: [{job.source}] {job.company} - {job.role}")
+            msg = format_job_alert_whatsapp(job)
+            if can_dispatch_telegram and not dry_run:
+                try:
+                    await send_alert_for_approval(
+                        bot_token=TELEGRAM_BOT_TOKEN,
+                        chat_id=TELEGRAM_ADMIN_CHAT_ID,
+                        alert_id=job.job_id,
+                        title=f"[{job.source}] {job.company} - {job.role}",
+                        category=f"{job.source} Opening",
+                        text=msg,
+                        url=job.apply_url
+                    )
+                except Exception as e:
+                    print(f"  ❌ Telegram dispatch failed: {e}")
+            else:
+                print("\n--- [WHATSAPP PREVIEW: MULTI-BOARD OPENING] ---\n" + msg + "\n------------------------------------")
+            if new_multi_count >= 5:
+                break
+    if new_multi_count == 0:
+        print("  ⏭ All multi-board tech jobs already tracked.")
 
     print("\n🎉 Pipeline Execution Completed Successfully!")
 
