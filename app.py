@@ -65,6 +65,7 @@ async def task_morning():
                 text=msg,
                 url=potd.url
             )
+            mark_as_sent(alert_id, "dispatched", f"LeetCode: {potd.title}", potd.url)
     # 2. Contests
     contests = get_all_upcoming_contests()
     if contests:
@@ -80,6 +81,7 @@ async def task_morning():
                 text=msg,
                 url=contests[0].url
             )
+            mark_as_sent(alert_id, "dispatched", "Upcoming Contests Digest", contests[0].url)
 
 async def task_afternoon():
     """Runs high-volume verified engineering jobs & internships across LinkedIn, Internshala, Instahyre, GitHub & Unstop."""
@@ -102,6 +104,7 @@ async def task_afternoon():
                 text=msg,
                 url=g_job.apply_url
             )
+            mark_as_sent(g_job.job_id, "dispatched", f"{g_job.company} - {g_job.role}", g_job.apply_url)
             dispatched_count += 1
             if dispatched_count >= 4:
                 break
@@ -120,6 +123,7 @@ async def task_afternoon():
                 text=msg,
                 url=job.apply_url
             )
+            mark_as_sent(job.job_id, "dispatched", f"{job.company} - {job.role}", job.apply_url)
             dispatched_count += 1
             if dispatched_count >= 8:
                 break
@@ -138,6 +142,7 @@ async def task_afternoon():
                 text=msg,
                 url=opp.apply_url
             )
+            mark_as_sent(opp.job_id, "dispatched", f"{opp.company} - {opp.role}", opp.apply_url)
             dispatched_count += 1
             if dispatched_count >= 10:
                 break
@@ -159,6 +164,7 @@ async def task_evening():
                 text=msg,
                 url=ex.apply_url
             )
+            mark_as_sent(ex.job_id, "dispatched", f"{ex.company} - {ex.role}", ex.apply_url)
 
 async def task_tier1():
     """Runs Tier-1 Tech Radar (Google, Amazon, Microsoft, Goldman Sachs, etc.)."""
@@ -177,6 +183,7 @@ async def task_tier1():
                 text=msg,
                 url=prog.apply_url
             )
+            mark_as_sent(prog.job_id, "dispatched", f"{prog.company} - {prog.role}", prog.apply_url)
 
 @app.get("/morning")
 @app.get("/cron/morning")

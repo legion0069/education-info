@@ -11,3 +11,5 @@ services:
         sync: false
       - key: CRON_SECRET_TOKEN
         value: radar2027secret
+      - key: DATABASE_URL
+        value: postgresql://neondb_owner:npg_g6ONGKzC9aQr@ep-shiny-cake-bib04r36-pooler.c-5.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
