@@ -10,6 +10,7 @@ from scrapers.exam_tracker import get_national_exams
 from scrapers.tier1_tracker import get_tier1_programs
 from scrapers.multi_board_scraper import fetch_all_multi_board_opportunities
 from scrapers.github_swe_tracker import fetch_github_college_jobs
+from scrapers.hyderabad_events_tracker import get_all_hyderabad_tech_events
 from formatter import (
     format_leetcode_potd_whatsapp,
     format_contests_whatsapp,
@@ -194,6 +195,37 @@ async def run_pipeline_async(dry_run: bool = True):
                 break
     if new_multi_count == 0:
         print("  ⏭ All multi-board tech jobs already tracked.")
+
+    # 7. Hyderabad Hackathons & Tech Events (T-Hub, IIIT-H, Unstop)
+    print("\n🏆 [7/7] Fetching Hyderabad Hackathons & Tech Events...")
+    hyd_events = get_all_hyderabad_tech_events()
+    new_hyd_count = 0
+    for ev in hyd_events:
+        if not is_already_sent(ev.job_id):
+            new_hyd_count += 1
+            print(f"  ✨ New Hyderabad Event: {ev.company} - {ev.role}")
+            msg = format_job_alert_whatsapp(ev)
+            if can_dispatch_telegram and not dry_run:
+                try:
+                    await send_alert_for_approval(
+                        bot_token=TELEGRAM_BOT_TOKEN,
+                        chat_id=TELEGRAM_ADMIN_CHAT_ID,
+                        alert_id=ev.job_id,
+                        title=f"{ev.company} - {ev.role}",
+                        category="Hyd Hackathon",
+                        text=msg,
+                        url=ev.apply_url
+                    )
+                    mark_as_sent(ev.job_id, "dispatched", f"{ev.company} - {ev.role}", ev.apply_url)
+                    print(f"  📨 Sent {ev.company} event to Telegram!")
+                except Exception as e:
+                    print(f"  ❌ Telegram dispatch failed: {e}")
+            else:
+                print("\n--- [WHATSAPP PREVIEW: HYDERABAD HACKATHON] ---\n" + msg + "\n----------------------------------------")
+            if new_hyd_count >= 3:
+                break
+    if new_hyd_count == 0:
+        print("  ⏭ All Hyderabad hackathons already tracked.")
 
     print("\n🎉 Pipeline Execution Completed Successfully!")
 

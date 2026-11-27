@@ -13,6 +13,7 @@ from scrapers.exam_tracker import get_national_exams
 from scrapers.tier1_tracker import get_tier1_programs
 from scrapers.multi_board_scraper import fetch_all_multi_board_opportunities
 from scrapers.github_swe_tracker import fetch_github_college_jobs
+from scrapers.hyderabad_events_tracker import get_all_hyderabad_tech_events
 from formatter import (
     format_leetcode_potd_whatsapp,
     format_contests_whatsapp,
@@ -185,33 +186,59 @@ async def task_tier1():
             )
             mark_as_sent(prog.job_id, "dispatched", f"{prog.company} - {prog.role}", prog.apply_url)
 
+async def task_hackathons():
+    """Runs Hyderabad Hackathons & Tech Events (T-Hub, IIIT-H, GDG, Engineering Summits)."""
+    if not is_configured():
+        return
+    events = get_all_hyderabad_tech_events()
+    for ev in events:
+        if not is_already_sent(ev.job_id):
+            msg = format_job_alert_whatsapp(ev)
+            await send_alert_for_approval(
+                bot_token=TELEGRAM_BOT_TOKEN,
+                chat_id=TELEGRAM_ADMIN_CHAT_ID,
+                alert_id=ev.job_id,
+                title=f"{ev.company} - {ev.role}",
+                category="Hyd Hackathon",
+                text=msg,
+                url=ev.apply_url
+            )
+            mark_as_sent(ev.job_id, "dispatched", f"{ev.company} - {ev.role}", ev.apply_url)
+
 @app.get("/morning")
 @app.get("/cron/morning")
 async def trigger_morning(token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
     verify_token(token, authorization)
     asyncio.create_task(task_morning())
-    return PlainTextResponse("OK")
+    return PlainTextResponse("OK", headers={"Content-Length": "2"})
 
 @app.get("/afternoon")
 @app.get("/cron/afternoon")
 async def trigger_afternoon(token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
     verify_token(token, authorization)
     asyncio.create_task(task_afternoon())
-    return PlainTextResponse("OK")
+    return PlainTextResponse("OK", headers={"Content-Length": "2"})
 
 @app.get("/evening")
 @app.get("/cron/evening")
 async def trigger_evening(token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
     verify_token(token, authorization)
     asyncio.create_task(task_evening())
-    return PlainTextResponse("OK")
+    return PlainTextResponse("OK", headers={"Content-Length": "2"})
 
 @app.get("/tier1")
 @app.get("/cron/tier1")
 async def trigger_tier1(token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
     verify_token(token, authorization)
     asyncio.create_task(task_tier1())
-    return PlainTextResponse("OK")
+    return PlainTextResponse("OK", headers={"Content-Length": "2"})
+
+@app.get("/hackathons")
+@app.get("/cron/hackathons")
+async def trigger_hackathons(token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+    verify_token(token, authorization)
+    asyncio.create_task(task_hackathons())
+    return PlainTextResponse("OK", headers={"Content-Length": "2"})
 
 @app.get("/scan")
 @app.get("/cron/scan")
@@ -223,7 +250,8 @@ async def trigger_all(token: Optional[str] = Query(None), authorization: Optiona
     asyncio.create_task(task_afternoon())
     asyncio.create_task(task_evening())
     asyncio.create_task(task_tier1())
-    return PlainTextResponse("OK")
+    asyncio.create_task(task_hackathons())
+    return PlainTextResponse("OK", headers={"Content-Length": "2"})
 
 @app.post("/telegram/webhook")
 async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
@@ -294,7 +322,7 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
                 try:
                     await bot.send_message(
                         chat_id=chat_id,
-                        text="🔍 *Scan Initiated!*\nChecking LeetCode POTD, Contests, Summer 2027 Internships (NVIDIA, Airbnb), Tier-1 Tech, LinkedIn, Internshala & Instahyre...",
+                        text="🔍 *Scan Initiated!*\nChecking LeetCode POTD, Contests, Summer 2027 Internships (NVIDIA, Airbnb), Tier-1 Tech, Hyd & Blr Tech Jobs, and Hyderabad Hackathons...",
                         parse_mode="Markdown"
                     )
                 except Exception as e:
@@ -303,6 +331,7 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
                 background_tasks.add_task(task_afternoon)
                 background_tasks.add_task(task_evening)
                 background_tasks.add_task(task_tier1)
+                background_tasks.add_task(task_hackathons)
             elif text in ["/start", "start"]:
                 try:
                     await bot.send_message(

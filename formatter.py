@@ -59,7 +59,12 @@ def format_job_alert_whatsapp(job: JobAlert) -> str:
     degrees = ", ".join(job.eligible_degrees)
     branches = ", ".join(job.eligible_branches)
     
-    header_tag = "🚨 *HIRING ALERT: 2027 BATCH*" if "2027" in job.batch else "🚨 *OPPORTUNITY ALERT*"
+    if "🏆" in job.role or "hackathon" in job.job_type.lower() or "competition" in job.job_type.lower():
+        header_tag = "🏆 *HYDERABAD TECH EVENT & HACKATHON ALERT*"
+    elif "2027" in job.batch:
+        header_tag = "🚨 *HIRING ALERT: 2027 BATCH*"
+    else:
+        header_tag = "🚨 *OPPORTUNITY ALERT*"
     
     message = (
         f"{header_tag}\n"
